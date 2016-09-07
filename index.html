@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>test</title>
+<style>
+html,body
+{
+    height: 100%;
+    width: 100%;
+}
+body
+{
+    margin: 0;
+}
+
+#chat > div
+{
+    font-size: 16px;
+    height: 20px;
+    line-height: 20px;
+}
+</style>
+<script type="text/javascript">
+
+( function()
+{
+
+var g_nodeChatLog = null;
+var g_nNextLine = 0;
+var g_nMaxLines = null;
+var g_lastTimestamp = null;
+/*
+assert
+clear
+debug       : ( ) all blue
+error       : (x) red, numbers blue
+info        : (i) numbers blue
+log         : ( ) numbers blue
+warn        : /!\ numbers blue
+*/
+
+
+// Fallback debug console
+if ( typeof console === "undefined" || ( window.navigator.platform.match( /Linux arm/ ) && window.navigator.userAgent.match( /OYO/ ) ) )
+{        
+    window.console = {
+        assert : function( _assertion )
+        {
+            // Show assertion if failed (params 2 and up
+            if ( _assertion )
+                this.log( "Assertion failed:", [].slice.call( arguments, 1 ).join( " " ) );
+        },
+        clear : function( )
+        {
+            // Clear the console
+            this._c().innerHTML = "";
+        },
+        debug : function( )
+        {
+            this._w( "( )", [].slice.call( arguments, 0 ).join( " " ) );
+        },
+        error : function( )
+        {
+            this._w( "(x)", [].slice.call( arguments, 0 ).join( " " ) );
+        },
+        info : function( )
+        {
+            this._w( "(i)", [].slice.call( arguments, 0 ).join( " " ) );
+        },
+        log : function( )
+        {
+            this._w( "( )", [].slice.call( arguments, 0 ).join( " " ) );
+        },
+        warn : function( )
+        {
+            this._w( "/!\\", [].slice.call( arguments, 0 ).join( " " ) );
+        },
+        _w : function( )
+        {
+            this._c().appendChild( document.createElement( "div" ) ).textContent = [].slice.call( arguments, 0 ).join( " " );
+            this._c().scrollTop = this._c().offsetHeight;
+        },
+        _c : function( )
+        {
+            var c = document.getElementById( "debug_console" );
+            if ( !c )
+            {
+                c = document.body.appendChild( document.createElement( "div" ) );
+                c.id = "debug_console";
+                c.style.position = "fixed";
+                c.style.left = c.style.right = c.style.bottom = "0";
+                c.style.height = "20%";
+                c.style.overflow = "auto";
+                var that = this;
+                c.onclick = function()
+                {
+                    that.clear();
+                };
+            }
+            return c;
+        }
+    };
+}
+
+
+
+
+function dl()
+{
+    g_nodeChatLog = document.body.appendChild( document.createElement( "div" ) );
+    g_nodeChatLog.id = "chat";
+
+    // Determine max number of lines
+    g_nMaxLines = ( document.body.offsetHeight/20|0 );
+
+    // Create line placeholders accordingly
+    for ( var nLine = 0; nLine < g_nMaxLines; nLine++ )
+        g_nodeChatLog.appendChild( document.createElement( "div" ) ).id = "l" + nLine;
+
+    // Fetch some lines
+    fetchLines();
+
+    // pageshow shows once
+    // focus upon touch and after that: resume
+    // resize upon orientation change and resume
+
+
+    /*
+    console.log( "listening on several events.." );
+    console.log( "navigator.onLine=" + (navigator.onLine ? "true" : ( navigator.onLine === false ? "false" : "undefined" ) ) );
+    window.addEventListener( "visibilitychange", function()
+    {
+        console.log( "visibilitychange" );
+    } );
+
+    window.addEventListener( "webkitvisibilitychange", function()
+    {
+        console.log( "webkitvisibilitychange" );
+    } );
+
+    window.addEventListener( "pageshow", function()
+    {
+        console.log( "pageshow" );
+    } );
+
+    window.addEventListener( "resume", function()
+    {
+        console.log( "resume" );
+    } );
+
+    window.addEventListener( "focus", function()
+    {
+        console.log( "focus " + navigator.onLine );
+    } );
+
+    window.addEventListener( "deviceorientation", function()
+    {
+        console.log( "deviceorientation" );
+    } );
+
+    window.addEventListener( "orientationchange", function()
+    {
+        console.log( "orientationchange" );
+    } );
+
+    window.addEventListener( "resize", function()
+    {
+        console.log( "resize " + navigator.onLine );
+    } );
+
+    // Set focus so we have some event upon wakeup
+    window.focus();
+    */
+}
+
+function fetchLines()
+{
+    var xhr = new XMLHttpRequest();
+
+    // Fetch (max number, excluding blank line) of lines (TODO: starting from timestamp)
+    xhr.open( "GET", "/log?max=" + ( g_nMaxLines - 1 ) + ( g_lastTimestamp ? "&after=" + g_lastTimestamp : "" ) );
+    xhr.onload = function( _evt )
+    {
+        if ( _evt.target.status !== 200 )
+            return;
+
+        var logLines = JSON.parse( _evt.target.responseText );
+
+        // TODO: at max fetch windowHeight / 20px items and see if they fit
+        logLines.forEach( printLine );
+
+        /*
+        console.log( logLines );
+        console.log( "loaded" );
+        */
+    };
+
+    xhr.onerror = function( _evt )
+    {
+        console.log( "failed to load log files" );
+
+        // Reload will trigger a reconnect (wifi might be disconnected)
+        location.reload();
+    };
+
+    xhr.send( );
+
+    //console.warn( fetchLines.bind );
+    /*
+    setInterval( function()
+    {
+        fetchLines.apply( this );
+    }, 10000 );
+    */
+
+    // TODO: fetch lines on focus?
+    setTimeout( fetchLines, 10000 );
+
+}
+
+function printLine( _line )
+{
+    var nodeLine = document.getElementById( "l" + g_nNextLine );
+
+    // assume:
+    // target: "#ACKspaceBots"
+
+    // Save latest timestamp
+    if ( _line.timestamp > g_lastTimestamp )
+        g_lastTimestamp = _line.timestamp;
+
+    // Simplify object
+    var ts = new Date( _line.timestamp );
+    _line.timestamp = ts.getHours() + ":" + (ts.getMinutes() < 10 ? "0" : "") + ts.getMinutes() + ":" + (ts.getSeconds() < 10 ? "0" : "") + ts.getSeconds();
+    _line.source = _line.source.split( "!" )[ 0 ];
+
+    switch( _line.type )
+    {
+        case "PRIVMSG":
+            nodeLine.innerText = _line.timestamp + " <" + _line.source + "> " + _line.data
+            break;
+
+        case "JOIN":
+            nodeLine.innerText = _line.timestamp + " -!- " + _line.source + "[] has joined " + _line.target
+            break;
+
+        case "QUIT":
+            nodeLine.innerText = _line.timestamp + " -!- " + _line.source + "[] has quit " + _line.target + " [" + _line.data + "]";
+            break;
+
+        default:
+            nodeLine.innerText = "<unknown message>";
+    }
+
+    if ( ++g_nNextLine >= g_nMaxLines )
+        g_nNextLine = 0;
+
+    // Blank the next line
+    document.getElementById( "l" + g_nNextLine ).innerText = "";
+}
+
+    window.addEventListener( "load", dl );
+}());
+</script>
+</head>
+<body>
+
+<div id="console"></div>
+<script type="text/javascript">
+</script>
+</body>
+</html>
+
