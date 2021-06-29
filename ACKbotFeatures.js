@@ -3,16 +3,6 @@
 global.spaceAPI = null;
 global.github = null;
 
-// TODO: remove after restarting the bot
-/*
-global.connection = {
-    name     : "ACKbot",
-    server   : "irc.freenode.org",
-    port     : 6667,
-    channels : "#ACKspace,#ACKspaceBots"
-};
-*/
-
 var request = require( "request" ); //alternative is 'http'
 var xmlParser = null;
 
@@ -460,7 +450,7 @@ exports.ACKbotFeatures.commands = [
 
             fetchWikiData( function( _wiki )
             {
-                
+
                 var lastEdit = _wiki.lastEdit.entry[ 0 ];
                 var newPages = _wiki.newPages.entry[ 0 ];
                 var data;

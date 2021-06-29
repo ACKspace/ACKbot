@@ -1,10 +1,4 @@
 /*
-ircServer
-ircPort:6667
-listenChannel
-relayChannel
-*/
-/*
 TODO:
 (M) split off starting colon on message data
 
@@ -17,16 +11,21 @@ TODO:
 */
 "use strict";
 
-var name     = "ACKbot";
-var server   = "irc.freenode.org"; // assume port 6667
-var channels = "#ACKspace,#ACKspaceBots";
+global.connection = {
+    name     : "ACKbot",
+    server   : "irc.libera.chat",
+    port     : 6667,
+    channels : "#ACKspace,#ACKspaceBots"
+};
+var maxLogEntries = 100;
+global.logEntries = [];
+global.responseQueue = [];
 
 var strACKbotFeatures = "./ACKbotFeatures.js";
 var net         = require( "net"  );
 var http        = require( "http" );
 var fs          = require( "fs"   );
 var features    = require( strACKbotFeatures );
-
 
 // Watch ACKbot features file (so we can do real-time updating
 fs.watchFile( strACKbotFeatures, function()
@@ -44,24 +43,13 @@ fs.watchFile( strACKbotFeatures, function()
     }
 } );
 
-// Connect to IRC
-var maxLogEntries = 100;
-global.logEntries = [];
-global.responseQueue = [];
-global.connection = {
-    name     : "ACKbot",
-    server   : "irc.freenode.org",
-    port     : 6667,
-    channels : "#ACKspace,#ACKspaceBots"
-};
-
 var client;
 try
 {
     client = new net.Socket( );
 
     //client = net.createConnection( { host: server, port: 6667}, connectListener );
-    client.connect( { host: server, port: 6667}, connectListener );
+    client.connect( { host: global.connection.server, port: 6667}, connectListener );
 }
 catch ( _err )
 {
@@ -75,9 +63,9 @@ function connectListener()
     // NICK [IDENT@ip]
     // ircname=REALNAME
     //self.conn.send(bytes("USER %s %s bla :%s\r\n" % (ident, host, realname),'utf-8'))
-    client.write( "NICK " + name + "\n" );
-    client.write( "USER " + name + " " + server + " ACK :Information and (eReader) log provider bot\n" );
-    client.write( "JOIN :" + channels + "\n" );
+    client.write( "NICK " + global.connection.name + "\n" );
+    client.write( "USER " + global.connection.name + " " + global.connection.server + " ACK :Information and (eReader) log provider bot\n" );
+    client.write( "JOIN :" + global.connection.channels + "\n" );
 };
 
 var fields = [ "source", "command", "target", "data" ];
@@ -104,9 +92,9 @@ client.on('data', function( _data )
     {
         case "353": //:rajaniemi.freenode.net 353 ACKbot_js @ #ACKspaceBots :ACKbot_js xopr
             break;
-        
+
         case "366": //:rajaniemi.freenode.net 366 ACKbot_js #ACKspaceBots :End of /NAMES list.
-        case "372": //:rajaniemi.freenode.net 372 ACKbot_js :-  
+        case "372": //:rajaniemi.freenode.net 372 ACKbot_js :-
         case "376": //:rajaniemi.freenode.net 376 ACKbot_js :End of /MOTD command.
         case "402": //:rajaniemi.freenode.net 402 ACKbot_js 130.255.72.221 :No such server
         case "451": //:rajaniemi.freenode.net 451 * :You have not registered
@@ -125,7 +113,7 @@ client.on('data', function( _data )
             messageLog.timestamp = Date.now();
 
             // TODO: strip off \r\n
-            if ( messageLog.source.split( "!" )[ 0 ] === name )
+            if ( messageLog.source.split( "!" )[ 0 ] === global.connection.name )
                 console.log( "*", "Joined", messageLog.target );
             break;
         //:ACKbot_js!~ACKbotjs@84-245-26-101.dsl.cambrium.nl JOIN #ACKspaceBots
@@ -156,7 +144,7 @@ client.on('data', function( _data )
     }
 
     // Public message?
-    if ( messageLog.target && messageLog.target !== name )
+    if ( messageLog.target && messageLog.target !== global.connection.name )
     {
         global.logEntries.push( messageLog );
     }
@@ -201,7 +189,7 @@ client.on( 'close', function()
     console.log('Connection closed, reconnecting' );
     try
     {
-        client.connect( { host: server, port: 6667}, connectListener );
+        client.connect( { host: global.connection.server, port: 6667}, connectListener );
     }
     catch ( _err )
     {
@@ -221,7 +209,7 @@ function handleResponse( _responseData, _timeout )
         // Log if public channel message
         if ( _responseData.target[0] === "#" )
         {
-            _responseData.source = name;
+            _responseData.source = global.connection.name;
             _responseData.timestamp = Date.now();
 
             global.logEntries.push( _responseData );
@@ -286,8 +274,6 @@ var server = http.createServer( function( _request, _response )
                 query[ _kvp.substr( 0, assignPos ) ] = _kvp.substr( assignPos + 1 );
         } );
     }
-
-    //console.log( "R", url, query );
 
     switch ( url.toLowerCase() )
     {
